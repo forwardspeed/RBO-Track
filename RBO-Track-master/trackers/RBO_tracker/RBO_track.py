@@ -285,7 +285,7 @@ class KalmanBoxTracker(object):
 """
 
 
-class Determined_Track(object):
+class RBO_Track(object):
     def __init__(self, args, init_thresh, determined_thresh, max_age=30, min_hits=3,
         iou_threshold=0.3,emb_threshold=0.3):
         """

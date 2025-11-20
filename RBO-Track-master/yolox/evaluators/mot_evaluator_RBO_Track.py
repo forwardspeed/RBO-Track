@@ -13,7 +13,7 @@ from yolox.utils import (
     xyxy2xywh
 )
 
-from trackers.determined_tracker.determined_track import Determined_Track
+from trackers.RBO_tracker.RBO_Track import RBO_Track
 
 import contextlib
 import io
@@ -148,7 +148,7 @@ class MOTEvaluator:
                 return warp_matrix, None
 
 
-    def evaluator_determined_track(
+    def evaluator_RBO_track(
             self,
             args,
             model,
@@ -220,28 +220,6 @@ class MOTEvaluator:
                     datasets, but we don't use that by default for a generalized 
                     stack of parameters on all datasets.
                 """
-#                 if video_name == 'MOT17-05-FRCNN' or video_name == 'MOT17-06-FRCNN':
-#                     self.args.track_buffer = 14
-#                 elif video_name == 'MOT17-13-FRCNN' or video_name == 'MOT17-14-FRCNN':
-#                     self.args.track_buffer = 25
-#                 else:
-#                     self.args.track_buffer = 30
-
-#                 if video_name == 'MOT17-01-FRCNN':
-#                     self.args.track_thresh = 0.65
-#                 elif video_name == 'MOT17-06-FRCNN':
-#                     self.args.track_thresh = 0.65
-#                 elif video_name == 'MOT17-12-FRCNN':
-#                     self.args.track_thresh = 0.7
-#                 elif video_name == 'MOT17-14-FRCNN':
-#                     self.args.track_thresh = 0.67
-#                 else:
-#                     self.args.track_thresh = ori_thresh
-
-#                 if video_name == 'MOT20-06' or video_name == 'MOT20-08':
-#                     self.args.track_thresh = 0.3
-#                 else:
-#                     self.args.track_thresh = ori_thresh
 
                 is_time_record = cur_iter < len(self.dataloader) - 1
                 if is_time_record:
@@ -251,7 +229,7 @@ class MOTEvaluator:
                     video_names[video_id] = video_name
 
                 if frame_id == 1:
-                    tracker = Determined_Track(args, init_thresh=self.args.init_thresh, determined_thresh=self.args.determined_thresh,
+                    tracker = RBO_Track(args, init_thresh=self.args.init_thresh, determined_thresh=self.args.determined_thresh,
                                                iou_threshold=self.args.iou_thresh,emb_threshold=self.args.emb_thresh)
                     if len(results) != 0:
                         result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id - 1]))
@@ -284,22 +262,7 @@ class MOTEvaluator:
                         bbox_xyxy /= scale
                         id_feature = self.encoder.inference(raw_image,
                                                             bbox_xyxy.cpu().detach().numpy())  # normalization and numpy included
-                    # res = {}
-                    # res['detection'] = outputs[0]
-                    # res['reid_feature'] = id_feature
-                    # os.makedirs("dance_detections/{}".format(video_name), exist_ok=True)
-                    # torch.save(res, ckt_file)
-                    # # verify of bboxes
-                    # import torchvision.transforms as T
-                    # mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)
-                    # std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)
-                    # normalize = T.Normalize(mean.tolist(), std.tolist())
-                    # unnormalize = T.Normalize((-mean / std).tolist(), (1.0 / std).tolist())
-                    # img_ = unnormalize(imgs[0]) * 255
-                    # img2 = img_.permute(1, 2, 0).type(torch.int16).cpu().detach().numpy()
-                    # import cv2
-                    # cv2.imwrite('img.png', img2[int(bbox_xyxy[0][1]): int(bbox_xyxy[0][3]),
-                    #                        int(bbox_xyxy[0][0]): int(bbox_xyxy[0][2]), :])
+
             if is_time_record:
                 infer_end = time_synchronized()
                 inference_time += infer_end - start

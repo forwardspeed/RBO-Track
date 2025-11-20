@@ -7,7 +7,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from yolox.core import launch
 from yolox.exp import get_exp
 from yolox.utils import configure_nccl, fuse_model, get_local_rank, get_model_info, setup_logger
-from yolox.evaluators import MOTEvaluatorDetermined as MOTEvaluator
+from yolox.evaluators import MOTEvaluatorRBO as MOTEvaluator
 
 from utils.args_determined import make_parser, args_merge_params_form_exp
 import os
@@ -124,7 +124,7 @@ def main(exp, args, num_gpu):
         decoder = None
 
     # start tracking
-    *_, summary = evaluator.determined_track(
+    *_, summary = evaluator.evaluator_RBO_track(
         args, model, is_distributed, args.fp16, trt_file, decoder, exp.test_size, results_folder
     )
 

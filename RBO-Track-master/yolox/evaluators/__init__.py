@@ -6,5 +6,5 @@ from .coco_evaluator import COCOEvaluator
 from .mot_evaluator import MOTEvaluator
 from .mot_evaluator_dance import MOTEvaluator as MOTEvaluatorDance
 from .mot_evaluator_public import MOTEvaluatorPublic
-from .mot_evaluator_determined import MOTEvaluator as MOTEvaluatorDetermined
+from .mot_evaluator_RBO_Track import MOTEvaluator as MOTEvaluatorRBO
 from .mot_evaluator_byte_oc import MOTEvaluator as ByteOc
