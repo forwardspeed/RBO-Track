@@ -23,9 +23,6 @@ Multi-object tracking aims to detect targets in videos and associate them correc
 
 ## Tracking performance
 
-
-### Results on MOT20 challenge test set
-
 ### Results on MOT17 challenge test set
 
 | Tracker          | HOTA | IDF1 | MOTA | AssA |
