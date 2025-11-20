@@ -364,7 +364,9 @@ class KalmanFilter(object):
         elif isscalar(Q):
             Q = eye(self.dim_x) * Q
 
-
+        if len(self.history_obs) > 0 and self.history_obs[-1] is None:
+            F[2][6] = 0
+            
         # x = Fx + Bu
         if B is not None and u is not None:
             self.x = dot(F, self.x) + dot(B, u)

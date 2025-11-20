@@ -37,7 +37,7 @@ def convert_x_to_bbox(x, score=None):
     else:
         w = 1
         h = 1
-
+    
     if(score == None):
         return np.array([x[0]-w/2., x[1]-h/2., x[0]+w/2., x[1]+h/2.]).reshape((1, 4))
     else:
@@ -48,15 +48,15 @@ def fine_det(bbox_t, bbox_d, bbox_s):
 
     if bbox_t[2] == -1:
         return bbox_d
-
+    
     v_1 = (bbox_d[0] + bbox_d[2])/2 - (bbox_s[0] + bbox_s[2])/2
     v_2 = (bbox_d[1] + bbox_d[3])/2 - (bbox_s[1] + bbox_s[3])/2
-
+    
     old_w = bbox_t[2] - bbox_t[0]
     old_h = bbox_t[3] - bbox_t[1]
-
+    
     z_fine = [-1, -1, -1, -1, bbox_d[4]]
-
+    
     if v_1 < 0:
         z_fine[0] = bbox_d[0]
         z_fine[2] = z_fine[0] + old_w
@@ -123,7 +123,7 @@ class KalmanBoxTracker(object):
         self.kf.Q[4:, 4:] *= 0.01
 
         self.kf.x[:4] = convert_bbox_to_z(bbox)
-        self.time_since_update = 0
+        # self.time_since_update = 0
         self.id = KalmanBoxTracker.count
         KalmanBoxTracker.count += 1
         # self.history = []
@@ -150,7 +150,7 @@ class KalmanBoxTracker(object):
             self.feat = feat
         elif score > 0 :
             if score > self.confidence:
-                score *= (1-siou)
+                score = score * (1-siou)
                 self.feat = ((2) / (2 + score)) * self.feat + (score/(2 + score)) * feat
             else:
                 self.feat = ((5) / (5 + score)) * self.feat + (score/(5 + score)) * feat
@@ -158,6 +158,24 @@ class KalmanBoxTracker(object):
             self.feat = self.alpha * self.feat + (1 - self.alpha) * feat
         self.feat /= np.linalg.norm(self.feat)
 
+    # def update_features(self, feat, score=-1, siou=0):
+    #     feat /= np.linalg.norm(feat)
+    #     if self.feat is None:
+    #         self.feat = feat
+    #     else:
+    #         if self.args.adapfs:
+    #             assert score > 0
+    #             pre_w = self.alpha * (self.confidence / (self.confidence + score))
+    #             cur_w = (1 - self.alpha) * (score / (self.confidence + score))
+    #             sum_w = pre_w + cur_w
+    #             pre_w = pre_w / sum_w
+    #             cur_w = cur_w / sum_w
+    #             self.feat = pre_w * self.feat + cur_w * feat
+    #         else:
+    #             self.feat = self.alpha * self.feat + (1 - self.alpha) * feat
+    #     self.feat /= np.linalg.norm(self.feat)
+        
+        
     def camera_update(self, warp_matrix):
         """
         update 'self.mean' of current tracklet with ecc results.
@@ -183,12 +201,12 @@ class KalmanBoxTracker(object):
         """
         if bbox is not None:
             # self.last_observation = bbox
-            self.time_since_update = 0
+            # self.time_since_update = 0
 
             self.hits += 1
             self.hit_streak += 1
             self.kf.update(convert_bbox_to_z(bbox))
-
+            
             # add interface for update feature or not
             if update_feature:
                 self.update_features(id_feature, bbox[-1], siou)
@@ -196,7 +214,7 @@ class KalmanBoxTracker(object):
         else:
             self.kf.update(bbox)
         self.last_observation = convert_x_to_bbox(self.kf.x_post)[0]
-
+            
     def update_keepv(self, bbox, state, fine_v=0, id_feature=None, siou = 0, update_feature=None):
         """
         Updates the state vector.
@@ -222,11 +240,11 @@ class KalmanBoxTracker(object):
             self.kf.update(z)
             if update_feature:
                 self.update_features(id_feature, bbox[-1], siou)
-            self.confidence = bbox[-1]
+            self.confidence = bbox[-1] 
+            self.hits += 1
         else:
             self.kf.update(bbox)
-        self.time_since_update = 0
-        self.hits += 1
+        # self.time_since_update = 0
         self.hit_streak += 1
         self.last_observation = convert_x_to_bbox(self.kf.x_post)[0]
 
@@ -237,10 +255,10 @@ class KalmanBoxTracker(object):
         pre_n = self.kf.x.copy()
         pre_n[0] += n * pre_n[4]
         pre_n[1] += n * pre_n[5]
-
+        
         return convert_x_to_bbox(pre_n)
-
-
+    
+    
     def predict(self):
         """
         Advances the state vector and returns the predicted bounding box estimate.
@@ -249,13 +267,9 @@ class KalmanBoxTracker(object):
             self.kf.x[6] *= 0.0
         self.kf.predict()
         self.age += 1
-        if(self.time_since_update > 0):
-            self.hit_streak = 0
-        self.time_since_update += 1
-        # self.history.append()
         return convert_x_to_bbox(self.kf.x)
 
-
+    
     def get_state(self):
         """
         Returns the current bounding box estimate.
@@ -294,7 +308,7 @@ class Determined_Track(object):
     def camera_update(self, trackers, warp_matrix):
         for tracker in trackers:
             tracker.camera_update(warp_matrix)
-
+    
     def update_9(self, output_results, img_info, img_size, id_feature=None, warp_matrix=None):
         """
         Params:
@@ -339,14 +353,12 @@ class Determined_Track(object):
         dets_d_init = dets[scores >= self.determined_thresh]
         id_d_feature = id_feature[scores >= self.determined_thresh]
         id_ud_feature = id_feature[inds_ud_init]
+        id_cant_feature = id_feature[inds_cant_init]
 
         to_del1 = []
-        d_v = np.zeros((len(self.d_trackers), 2))
         d_trks = np.zeros((len(self.d_trackers), 5))
         d_pre = np.zeros((len(self.d_trackers), 4))
         for t, trk in enumerate(d_trks):
-            d_v[t][0] = self.d_trackers[t].kf.x[4]
-            d_v[t][1] = self.d_trackers[t].kf.x[5]
             pos = self.d_trackers[t].predict()
             trk[:] = [pos[0][0], pos[0][1], pos[0][2], pos[0][3], self.d_trackers[t].confidence]
             prepos = self.d_trackers[t].predict_n(3)
@@ -356,17 +368,13 @@ class Determined_Track(object):
         d_trks = np.ma.compress_rows(np.ma.masked_invalid(d_trks))
         for t in reversed(to_del1):
             self.d_trackers.pop(t)
-        d_v = np.delete(d_v, to_del1, axis=0)
         d_pre = np.delete(d_pre, to_del1, axis=0)
 
         to_del2 = []
-        oc_v = np.zeros((len(self.oc_trackers), 2))
-        oc_time = np.zeros(len(self.oc_trackers))
+        oc_time = np.zeros(len(self.oc_trackers))                           
         oc_trks = np.zeros((len(self.oc_trackers), 5))
         oc_pre = np.zeros((len(self.oc_trackers), 4))
         for t, trk in enumerate(oc_trks):
-            oc_v[t][0] = self.oc_trackers[t].kf.x[4]
-            oc_v[t][1] = self.oc_trackers[t].kf.x[5]
             oc_time[t] = self.oc_trackers[t].oc_time
             pos = self.oc_trackers[t].predict()
             trk[:] = [pos[0][0], pos[0][1], pos[0][2], pos[0][3], self.oc_trackers[t].confidence]
@@ -377,17 +385,13 @@ class Determined_Track(object):
         oc_trks = np.ma.compress_rows(np.ma.masked_invalid(oc_trks))
         for t in reversed(to_del2):
             self.oc_trackers.pop(t)
-        oc_v = np.delete(oc_v, to_del2, axis=0)
         oc_pre = np.delete(oc_pre, to_del2, axis=0)
         oc_time = np.delete(oc_time, to_del2, axis=0)
 
         to_del3 = []
-        ud_v = np.zeros((len(self.und_trackers), 2))
         und_trks = np.zeros((len(self.und_trackers), 5))
         und_pre = np.zeros((len(self.und_trackers), 4))
         for t, trk in enumerate(und_trks):
-            ud_v[t][0] = self.und_trackers[t].kf.x[4]
-            ud_v[t][1] = self.und_trackers[t].kf.x[5]
             pos = self.und_trackers[t].predict()
             trk[:] = [pos[0][0], pos[0][1], pos[0][2], pos[0][3], self.und_trackers[t].confidence]
             prepos = self.und_trackers[t].predict_n(3)
@@ -397,9 +401,7 @@ class Determined_Track(object):
         und_trks = np.ma.compress_rows(np.ma.masked_invalid(und_trks))
         for t in reversed(to_del3):
             self.und_trackers.pop(t)
-        ud_v = np.delete(ud_v, to_del3, axis=0)
         und_pre = np.delete(und_pre, to_del3, axis=0)
-
 
         surface_dets = dets[inds_ud]
         d_to_oc = []
@@ -410,19 +412,19 @@ class Determined_Track(object):
 
         lenth1 = len(d_trks)
         lenth2 = len(oc_trks)
-        lenth3 = len(und_trks)
         lenthd = len(dets_d_init)
         lenthud = len(dets_ud_init)
         dets_init = np.concatenate([x if x.size else np.empty((0, 5)) for x in (dets_d_init, dets_ud_init)], axis=0)
         all_dets = np.concatenate([x if x.size else np.empty((0, 5)) for x in (dets_d_init, dets_ud_init, dets_cant_init)], axis=0)
-        dets_feature = np.concatenate([x if x.size else np.empty((0, 2048)) for x in (id_d_feature, id_ud_feature)], axis=0)
-
-
+        dets_feature = np.concatenate([x if x.size else np.empty((0, 2048)) for x in (id_d_feature, id_ud_feature, id_cant_feature)], axis=0)
+        
+        
         all_iou = iou_batch(all_dets, dets_init)
         all_dets_iou = iou_batch_box1(all_dets, dets_init)
         np.fill_diagonal(all_iou, 0)
         np.fill_diagonal(all_dets_iou, 0)
-
+        
+        
         d_max_iou = np.zeros(lenthd+lenthud)
         for n in range(lenthd+lenthud):
             siou = all_dets_iou[n]
@@ -438,13 +440,11 @@ class Determined_Track(object):
         all_trks_oc[lenth1 : lenth1 + lenth2] = (oc_time > 1).astype(int)
         all_pret = np.concatenate([x if x.size else np.empty((0, 4)) for x in (d_pre, oc_pre, und_pre)], axis=0)
 
-        all_v = np.concatenate([x if x.size else np.empty((0, 2)) for x in (d_v, oc_v, ud_v)], axis=0)
-
         d_track_features = np.asarray([track.feat for track in self.d_trackers], dtype=float)
         oc_track_features = np.asarray([track.feat for track in self.oc_trackers], dtype=float)
         und_track_features = np.asarray([track.feat for track in self.und_trackers], dtype=float)
         all_features = np.concatenate([x if x.size else np.empty((0, 2048)) for x in (d_track_features, oc_track_features, und_track_features)], axis=0)
-
+        
         pre_iou = iou_batch_box1(all_pret, all_pret)
         np.fill_diagonal(pre_iou, 0)
         # oced_set = set()
@@ -454,65 +454,54 @@ class Determined_Track(object):
             if all_pret[r][3] < all_pret[c][3]:
                 to_oced_set[r] = 0.5
 
-        # emb_dists = embedding_distance(dets_feature, all_features)
-        # matched, last_inds_init, last_inds_trks = associate_detections_to_trackers_ori(dets_init, all_trks, emb_dists, all_trks_oc + to_oced_set, self.iou_threshold, self.emb_threshold)
-        # unmatched_all_trks = all_trks
         """
             First round of association with dets_init and trks, use features
         """
         emb_dists = embedding_distance(dets_feature, all_features)
-
-        matched, unmatched_inds_init, unmatched_inds_all_trks = associate_detections_to_trackers_reid(dets_init, all_trks, emb_dists, all_trks_oc + to_oced_set, self.iou_threshold, self.emb_threshold)
-
-
+        
+        matched, unmatched_inds, unmatched_inds_all_trks = associate_detections_to_trackers_reid(all_dets, all_trks, emb_dists, all_trks_oc + to_oced_set, self.iou_threshold, self.emb_threshold)
         """
             Second round of associaton with unmatched_d_trks and dets_ud_init
         """
-        lenunmatch = len(unmatched_inds_init)
-        unmatched_mid_dets = dets_init[unmatched_inds_init] if len(unmatched_inds_init) > 0 else np.empty((0, dets_init.shape[1]), dtype=dets_init.dtype)
-        second_dets = np.concatenate([x if x.size else np.empty((0, 5)) for x in (unmatched_mid_dets, dets_cant_init)], axis=0)
+        if len(unmatched_inds) > 0 and len(unmatched_inds_all_trks) > 0:
+            unmatched_mid_dets = all_dets[unmatched_inds] if len(unmatched_inds) > 0 else np.empty((0, all_dets.shape[1]), dtype=dets_init.dtype)
+            unmatched_all_trks = all_trks[unmatched_inds_all_trks] if len(unmatched_inds_all_trks) > 0 else np.empty((0, all_trks.shape[1]), dtype=all_trks.dtype)
+            unmatched_all_trks_oc = all_trks_oc[unmatched_inds_all_trks]
+            unmatched_to_oced_set = to_oced_set[unmatched_inds_all_trks]
+            unmatched_emb_dists = emb_dists[np.ix_(unmatched_inds, unmatched_inds_all_trks)]
+            
+            rematched, last_inds, last_inds_trks = associate_detections_to_trackers(unmatched_mid_dets, unmatched_all_trks, unmatched_emb_dists, unmatched_all_trks_oc+unmatched_to_oced_set, self.iou_threshold-0.2)
+            second_matches = []
+            for m in rematched:
+                real0 = unmatched_inds[m[0]]
+                real1 = unmatched_inds_all_trks[m[1]]
+                if real0 < lenthd and emb_dists[real0, real1] < 0.8:
+                    last_inds_trks = np.concatenate([last_inds_trks, [m[1]]])
+                    continue
+                second_matches.append([real0, real1])
 
-
-        unmatched_all_trks = all_trks[unmatched_inds_all_trks] if len(unmatched_inds_all_trks) > 0 else np.empty((0, all_trks.shape[1]), dtype=all_trks.dtype)
-        unmatched_all_trks_oc = all_trks_oc[unmatched_inds_all_trks]
-        unmatched_to_oced_set = to_oced_set[unmatched_inds_all_trks]
-        unmatched_v = all_v[unmatched_inds_all_trks] if len(unmatched_inds_all_trks) > 0 else np.empty((0,), dtype=all_v.dtype)
-
-        rematched, last_inds_cant_init, last_inds_trks = associate_detections_to_trackers(second_dets, unmatched_all_trks, unmatched_v,unmatched_all_trks_oc+unmatched_to_oced_set, self.iou_threshold-0.2)
-
-        second_matches = []
-        for m in rematched:
-            real1 = unmatched_inds_all_trks[m[1]]
-            if m[0] < lenunmatch:
-                real0 = unmatched_inds_init[m[0]]
-            else:
-                real0 = m[0] - lenunmatch + lenthd + lenthud
-            if real0 < lenthd and emb_dists[real0, real1] < 0.8:
-                last_inds_trks = np.concatenate([last_inds_trks, [m[1]]])
-                continue
-            second_matches.append([real0, real1])
-
-        last_inds_init = unmatched_inds_init
-        if len(second_matches) > 0:
-            second_matches = np.array(second_matches, dtype=int)
-            matched = np.vstack([matched, second_matches]) if matched.size else second_matches
-            matched_mid_det_indices = second_matches[:, 0]
-            last_inds_init = np.array([d for d in unmatched_inds_init if d not in matched_mid_det_indices])
+            for i in range(len(last_inds_trks)):
+                last_inds_trks[i] = unmatched_inds_all_trks[last_inds_trks[i]]
+            for i in range(len(last_inds)):
+                last_inds[i] = unmatched_inds[last_inds[i]]
+            if len(second_matches) > 0:
+                second_matches = np.array(second_matches, dtype=int)
+                matched = np.vstack([matched, second_matches]) if matched.size else second_matches
+        else:
+            last_inds = unmatched_inds
+            last_inds_trks = unmatched_inds_all_trks
 
         for m in matched:
             if m[0] < lenthd:
                 if m[1] < lenth1:
                     r = (all_dets[m[0]][3] - all_dets[m[0]][1])/(all_trks[m[1]][3] - all_trks[m[1]][1])
-                    oc = 0
                     aiou = all_iou[m[0]]
                     siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.7)[0]
+                    idx = np.where(siou.squeeze() > 0.65)[0]
                     if to_oced_set[m[1]] > 0 and (r < 0.9 or r > 1.1) and self.d_trackers[m[1]].hits > 2:
                         s_max = 1
                         ind_max = m[0]
                         for ind in idx:
-                            if siou[ind]>0.9 and aiou[ind]>0.5 and all_dets[ind][3] > all_dets[m[0]][3]:
-                                oc = 1
                             s_2 = (all_dets[ind][2] - all_dets[ind][0]) * (all_dets[ind][3] - all_dets[ind][1])
                             if s_2 > s_max and all_dets[ind][3] > all_dets[m[0]][3]:
                                 s_max = s_2
@@ -521,46 +510,30 @@ class Determined_Track(object):
                         self.d_trackers[m[1]].update_keepv(fdet, self.d_trackers[m[1]].last_observation, fine_v = 1, id_feature = dets_feature[m[0], :], siou = d_max_iou[m[0]], update_feature=True)
                     else:
                         self.d_trackers[m[1]].update(dets_init[m[0], :], id_feature = dets_feature[m[0], :], siou = d_max_iou[m[0]], update_feature=True)
+                    # self.d_trackers[m[1]].update(dets_init[m[0], :], id_feature = dets_feature[m[0], :], siou = d_max_iou[m[0]], update_feature=True)
                     self.d_trackers[m[1]].accident = 0
-                    self.d_trackers[m[1]].oc_time = oc
+                    self.d_trackers[m[1]].oc_time = 0
                 elif m[1] < lenth1 + lenth2:
                     realind = m[1] - lenth1
-                    oc = 0
-                    aiou = all_iou[m[0]]
-                    siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.95)[0]
-                    for ind in idx:
-                        if all_dets[ind][3] > all_dets[m[0]][3] and aiou[ind]>0.5:
-                            oc = 1
                     self.oc_trackers[realind].update(dets_init[m[0], :], id_feature = dets_feature[m[0], :], siou = d_max_iou[m[0]], update_feature=True)
-                    self.oc_trackers[realind].oc_time = oc
+                    self.oc_trackers[realind].oc_time = 0
                     self.oc_trackers[realind].accident = 0
                     oc_to_d.append(realind)
                 else:
                     realind = m[1] - lenth1 - lenth2
-                    oc = 0
-                    aiou = all_iou[m[0]]
-                    siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.9)[0]
-                    for ind in idx:
-                        if all_dets[ind][3] > all_dets[m[0]][3] and aiou[ind]>0.5:
-                            oc = 1
                     self.und_trackers[realind].update(dets_init[m[0], :], id_feature = dets_feature[m[0], :], siou = d_max_iou[m[0]], update_feature=True)
                     ud_to_d.append(realind)
-                    self.und_trackers[realind].oc_time = oc
+                    self.und_trackers[realind].oc_time = 0
             elif m[0] < lenthd + lenthud:
                 if m[1] < lenth1:
                     r = (all_dets[m[0]][3] - all_dets[m[0]][1])/(all_trks[m[1]][3] - all_trks[m[1]][1])
-                    oc = 0
                     siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.7)[0]
+                    idx = np.where(siou.squeeze() > 0.65)[0]
                     if to_oced_set[m[1]] > 0 and (r < 0.9 or r > 1.1) and self.d_trackers[m[1]].hits > 2:
                         s_max = 1
                         ind_max = m[0]
                         for ind in idx:
                             aiou = all_iou[m[0]]
-                            if siou[ind]>0.9 and all_dets[ind][3] > all_dets[m[0]][3]:
-                                oc = 1
                             s_2 = (all_dets[ind][2] - all_dets[ind][0]) * (all_dets[ind][3] - all_dets[ind][1])
                             if s_2 > s_max and all_dets[ind][3] > all_dets[m[0]][3]:
                                 s_max = s_2
@@ -569,47 +542,31 @@ class Determined_Track(object):
                         self.d_trackers[m[1]].update_keepv(fdet, self.d_trackers[m[1]].last_observation, fine_v = 1)
                     else:
                         self.d_trackers[m[1]].update(dets_init[m[0], :])
+                    # self.d_trackers[m[1]].update(dets_init[m[0], :])
                     self.d_trackers[m[1]].accident = 0
-                    self.d_trackers[m[1]].oc_time = oc
+                    self.d_trackers[m[1]].oc_time = 0
                 elif m[1] < lenth1 + lenth2:
                     realind = m[1] - lenth1
-                    oc = 0
-                    aiou = all_iou[m[0]]
-                    siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.9)[0]
-                    for ind in idx:
-                        if all_dets[ind][3] > all_dets[m[0]][3]:
-                            oc = 1
                     self.oc_trackers[realind].update(dets_init[m[0], :])
-                    self.oc_trackers[realind].oc_time = oc
+                    self.oc_trackers[realind].oc_time = 0
                     self.oc_trackers[realind].accident = 0
                     oc_to_d.append(realind)
                 else:
                     realind = m[1] - lenth1 - lenth2
-                    oc = 0
-                    aiou = all_iou[m[0]]
-                    siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.9)[0]
-                    for ind in idx:
-                        if all_dets[ind][3] > all_dets[m[0]][3]:
-                            oc = 1
                     self.und_trackers[realind].update(dets_init[m[0], :], id_feature = dets_feature[m[0], :], siou = d_max_iou[m[0]], update_feature=True)
-                    self.und_trackers[realind].oc_time = oc
+                    self.und_trackers[realind].oc_time = 0
             else:
                 real_det_ind = m[0] - lenthd - lenthud
                 if m[1] < lenth1:
                     realind = m[1]
                     r = (all_dets[m[0]][3] - all_dets[m[0]][1])/(all_trks[m[1]][3] - all_trks[m[1]][1])
-                    oc = 0
                     aiou = all_iou[m[0]]
                     siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.7)[0]
+                    idx = np.where(siou.squeeze() > 0.65)[0]
                     if to_oced_set[m[1]] == 0 and (r < 0.9 or r > 1.1) and self.d_trackers[realind].hits > 2:
                         s_max = 1
                         ind_max = m[0]
                         for ind in idx:
-                            if siou[ind]>0.9 and all_dets[ind][3] > all_dets[m[0]][3]:
-                                oc = 1
                             s_2 = (all_dets[ind][2] - all_dets[ind][0]) * (all_dets[ind][3] - all_dets[ind][1])
                             if s_2 > s_max and all_dets[ind][3] > all_dets[m[0]][3]:
                                 s_max = s_2
@@ -617,24 +574,18 @@ class Determined_Track(object):
                         fdet = fine_det(self.d_trackers[realind].get_state()[0], dets_cant_init[real_det_ind, :], all_dets[ind_max, :])
                         self.d_trackers[realind].update_keepv(fdet, self.d_trackers[realind].last_observation, fine_v = 1)
                     else:
-                        for ind in idx:
-                            if siou[ind]>0.9 and all_dets[ind][3] > all_dets[m[0]][3]:
-                                oc = 1
                         self.d_trackers[realind].update(dets_cant_init[real_det_ind, :])
+                    # self.d_trackers[realind].update(dets_cant_init[real_det_ind, :])
                     self.d_trackers[realind].accident = 0
-                    self.d_trackers[m[1]].oc_time = oc
-                    # d_to_oc.append(realind)
+                    self.d_trackers[m[1]].oc_time = 0
                 elif m[1] < lenth1 + lenth2:
                     realind = m[1] - lenth1
-                    oc = 0
                     aiou = all_iou[m[0]]
                     siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.7)[0]
+                    idx = np.where(siou.squeeze() > 0.65)[0]
                     s_max = 1
                     ind_max = -1
                     for ind in idx:
-                        if siou[ind]>0.9 and aiou[ind]>0.5 and all_dets[ind][3] > all_dets[m[0]][3]:
-                            oc = 1
                         s_2 = (all_dets[ind][2] - all_dets[ind][0]) * (all_dets[ind][3] - all_dets[ind][1])
                         if s_2 > s_max and all_dets[ind][3] > dets_cant_init[real_det_ind, :][3]:
                             s_max = s_2
@@ -644,71 +595,43 @@ class Determined_Track(object):
                         self.oc_trackers[realind].update_keepv(fdet, self.oc_trackers[realind].last_observation)
                     else:
                         self.oc_trackers[realind].update(dets_cant_init[real_det_ind, :])
+                    # self.oc_trackers[realind].update(dets_cant_init[real_det_ind, :])
                     self.oc_trackers[realind].accident = 0
-                    self.oc_trackers[realind].oc_time = oc
+                    self.oc_trackers[realind].oc_time = 0
                 else:
                     realind = m[1] - lenth1 - lenth2
-                    oc = 0
-                    aiou = all_iou[m[0]]
-                    siou = all_dets_iou[m[0]]
-                    idx = np.where(siou.squeeze() > 0.9)[0]
-                    for ind in idx:
-                        if all_dets[ind][3] > all_dets[m[0]][3] and aiou[ind]>0.5:
-                            oc = 1
                     self.und_trackers[realind].update(dets_cant_init[real_det_ind, :])
                     self.und_trackers[realind].hits -= 1
-                    self.und_trackers[realind].oc_time = oc
+                    self.und_trackers[realind].oc_time = 0
 
-        if len(last_inds_init) > 0:
-            for i in last_inds_init:
-                siou = all_dets_iou[i]
-                idx = np.where(siou.squeeze() > 0.99)[0]
-                init = 1
-                # for ind in idx:
-                #     iou_2 = iou_two_boxes(all_dets[i], all_dets[ind])
-                #     if iou_2 < 0.1 and all_dets[ind][3] > all_dets[i][3] and all_dets[ind][4] > all_dets[i][4]:
-                #         w = (all_dets[ind][2] - all_dets[ind][0])/2
-                #         h = (all_dets[ind][3] - all_dets[ind][1])/2
-                #         if (((all_dets[i][2] - all_dets[ind][0]) < w) or ((all_dets[ind][2] - all_dets[i][0]) < w)):
-                #             continue
-                #         else:
-                #             init = 0
-                #             break
-                if init:
-                    if i>=lenthd:
+
+        if len(last_inds) > 0:
+            for i in last_inds:
+                if all_dets[i, :][4] > self.determined_thresh - 0.1:
+                    if i>=lenthd and i<lenthd+lenthud:
                         trk = KalmanBoxTracker(dets_init[i, :], dets_feature[i, :], uncertainty=10000, args=self.args)
                         self.und_trackers.append(trk)
                     elif i<lenthd:
                         trk = KalmanBoxTracker(dets_init[i, :], dets_feature[i, :], uncertainty=1000,args=self.args)
                         self.d_trackers.append(trk)
 
-        # if len(last_inds_init) > 0:
-        #     for i in last_inds_init:
-        #             if i>=lenthd:
-        #                 trk = KalmanBoxTracker(dets_init[i, :], dets_feature[i, :], uncertainty=10000, args=self.args)
-        #                 self.und_trackers.append(trk)
-        #             elif i<lenthd:
-        #                 trk = KalmanBoxTracker(dets_init[i, :], dets_feature[i, :], uncertainty=1000,args=self.args)
-        #                 self.d_trackers.append(trk)
-
         for u in last_inds_trks:
-            cond1 = unmatched_all_trks[u][3] <= (unmatched_all_trks[u][3] - unmatched_all_trks[u][1]) / 4
-            cond2 = unmatched_all_trks[u][2] <= (unmatched_all_trks[u][2] - unmatched_all_trks[u][0]) / 4
-            cond3 = abs(float(img_h) - unmatched_all_trks[u][1]) <= (unmatched_all_trks[u][3] - unmatched_all_trks[u][1]) / 4
-            cond4 = abs(float(img_w) - unmatched_all_trks[u][0]) <= (unmatched_all_trks[u][2] - unmatched_all_trks[u][0]) / 4
+            cond1 = all_trks[u][3] <= (all_trks[u][3] - all_trks[u][1]) / 4
+            cond2 = all_trks[u][2] <= (all_trks[u][2] - all_trks[u][0]) / 4
+            cond3 = abs(float(img_h) - all_trks[u][1]) <= (all_trks[u][3] - all_trks[u][1]) / 4
+            cond4 = abs(float(img_w) - all_trks[u][0]) <= (all_trks[u][2] - all_trks[u][0]) / 4
             if len(dets_init) > 0:
-                iou = iou_batch_box1([unmatched_all_trks[u]], dets_init)
+                iou = iou_batch_box1([all_trks[u]], dets_init)
                 surface_inds = np.argmax(iou)
                 surface_det = dets_init[surface_inds, :]
                 surface_iou = iou[0, surface_inds]
             else:
                 surface_iou = 0
                 surface_det = [0, 0, 0, 0, 0]
-            realind = unmatched_inds_all_trks[u]
-            # realind = u
+            realind = u
             if realind < lenth1:
                 if cond1 or cond2 or cond3 or cond4:
-                    self.d_trackers[realind].oc_time = 70  # 此轨迹已经在界面边界，可以判断为轨迹已经消失,将其遮挡值设置为25
+                    self.d_trackers[realind].oc_time = 90
                     d_to_oc.append(realind)
                 elif surface_iou > 0.1:
                     self.d_trackers[realind].oc_time += 1
@@ -718,27 +641,21 @@ class Determined_Track(object):
                     self.d_trackers[realind].oc_time += 1
                     self.d_trackers[realind].accident += 1
                     self.d_trackers[realind].update(None)
-                    if self.d_trackers[realind].accident > 2:
+                    if self.d_trackers[realind].accident > 1:
                         d_to_oc.append(realind)
             elif realind < lenth1 + lenth2:
                 realind -= lenth1
                 if cond1 or cond2 or cond3 or cond4:
-                    self.oc_trackers[realind].oc_time = 70  # 此轨迹已经在界面边界，可以判断为轨迹已经消失
-                elif surface_iou > 0.1:
-                    self.oc_trackers[realind].update(None)
-                    self.oc_trackers[realind].oc_time += 1
+                    self.oc_trackers[realind].oc_time = 90
                 else:
                     self.oc_trackers[realind].update(None)
                     self.oc_trackers[realind].oc_time += 1
-                if self.oc_trackers[realind].oc_time >= 60:
+                if self.oc_trackers[realind].oc_time >= 90:
                     oc_to_del.append(realind)
             else:
                 realind -= lenth1 + lenth2
                 if cond1 or cond2 or cond3 or cond4:
-                    self.und_trackers[realind].oc_time = 40  # 此轨迹已经在界面边界，可以判断为轨迹已经消失
-                elif surface_iou > 0.1:
-                    self.und_trackers[realind].update(None)
-                    self.und_trackers[realind].oc_time += 1
+                    self.und_trackers[realind].oc_time = 40
                 else:
                     self.und_trackers[realind].update(None)
                     self.und_trackers[realind].oc_time += 1
@@ -769,37 +686,29 @@ class Determined_Track(object):
         ud_to_del.sort(reverse=True)
         for n in ud_to_del:
             self.und_trackers.pop(n)
+            
         ret = []
-        ret1 = []
         if len(self.d_trackers) > 0:
             for trk in self.d_trackers:
-                # if trk.hits >= self.min_hits or self.frame_count <= self.min_hits:
                 if trk.oc_time < 1:
                     # +1 as MOT benchmark requires positive
                     d = trk.get_state()[0][:4]
                     ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))
-                    ret1.append([trk.id + 1, trk.confidence, trk.oc_time])
-        ret2 = []
+
         if len(self.oc_trackers) > 0:
             for trk in self.oc_trackers:
                 if trk.oc_time < 1:
                     # +1 as MOT benchmark requires positive
                     d = trk.get_state()[0][:4]
                     ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))
-                    ret2.append([trk.id + 1, trk.confidence, trk.oc_time])
-        ret3 = []
+
         if len(self.und_trackers) > 0:
             for trk in self.und_trackers:
-                if trk.hits >= self.min_hits or self.frame_count <= self.min_hits:
-                    # if trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits:
-                    if trk.oc_time < 1:
-                        # +1 as MOT benchmark requires positive
-                        d = trk.get_state()[0][:4]
-                        ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))
-                        ret3.append([trk.id + 1, trk.confidence, trk.oc_time])
-        # print("ret1:", ret1)
-        # print("ret2:", ret2)
-        # print("ret3:", ret3)
+                if (trk.hits >= self.min_hits or self.frame_count <= self.min_hits) and trk.oc_time < 1:
+                    # +1 as MOT benchmark requires positive
+                    d = trk.get_state()[0][:4]
+                    ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))
+
         if (len(ret) > 0):
             return np.concatenate(ret)
         return np.empty((0, 5))
