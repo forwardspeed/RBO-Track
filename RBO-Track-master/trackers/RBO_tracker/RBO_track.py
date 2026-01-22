@@ -309,7 +309,7 @@ class RBO_Track(object):
         for tracker in trackers:
             tracker.camera_update(warp_matrix)
     
-    def update_9(self, output_results, img_info, img_size, id_feature=None, warp_matrix=None):
+    def update(self, output_results, img_info, img_size, id_feature=None, warp_matrix=None):
         """
         Params:
           dets - a numpy array of detections in the format [[x1,y1,x2,y2,score],[x1,y1,x2,y2,score],...]

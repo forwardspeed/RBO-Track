@@ -48,7 +48,7 @@ Multi-object tracking aims to detect targets in videos and associate them correc
 
 RBO-Track code is based on [Hybrid-SORT](https://github.com/ymzis69/HybridSORT). Tested the code with Python 3.8 + torch 1.11.0.
 
-Step1. Install Hybrid_SORT
+Step1. Install RBO-Track
 
 ```shell
 git clone https://github.com/forwardspeed/RBO-Track.git
@@ -96,8 +96,10 @@ pip install -r fast_reid/docs/requirements.txt
 2. Prepare MOT17/MOT20 dataset. 
 
    ```python
+   # convert MOT17 and MOT20 to CoCo
+   python3 tools/convert_{mot17/mot20}_to_coco.py
    # build mixed training sets for MOT17 and MOT20 
-   python3 tools/mix_data_{ablation/mot17/mot20}.py
+   python3 tools/mix_data_{ablation/test_mot17/test_mot20}.py
    ```
 
 ## Model Zoo
@@ -136,7 +138,6 @@ Ours ReID models for **MOT17/MOT20** is the same as [BoT-SORT](https://github.co
 **Notes**:
 
 
-* Some parameters are set in the cfg.py. For example, if you run Hybrid-SORT on the dancetrack-val dataset, you should pay attention to the line 35-45 in ```exps/example/mot/yolox_dancetrack_val_hybrid_sort.py``` .
 * We set  ```fp16==False``` on the MOT datasets becacuse fp16 will lead to significant result fluctuations.
 
 ### MOT17
@@ -168,9 +169,7 @@ python tools/run_RBO_Track.py -f exps/example/mot/yolox_x_mix_mot20_ch_RBO_Track
 ## Citation
 
 If you find this work useful, please consider to cite our paper:
-```
 
-```
 
 ## Acknowledgement
 

@@ -13,7 +13,7 @@ from yolox.utils import (
     xyxy2xywh
 )
 
-from trackers.determined_tracker.byte_oc_track import Byte_oc_Track
+from trackers.RBO_tracker.byte_oc_track import Byte_oc_Track
 
 import contextlib
 import io

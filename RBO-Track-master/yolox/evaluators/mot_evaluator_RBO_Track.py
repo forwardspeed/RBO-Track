@@ -13,7 +13,7 @@ from yolox.utils import (
     xyxy2xywh
 )
 
-from trackers.RBO_tracker.RBO_Track import RBO_Track
+from trackers.RBO_tracker.RBO_track import RBO_Track
 
 import contextlib
 import io
@@ -260,8 +260,7 @@ class MOTEvaluator:
                         # box rescale borrowed from convert_to_coco_format()
                         scale = min(self.img_size[0] / float(info_imgs[0]), self.img_size[1] / float(info_imgs[1]))
                         bbox_xyxy /= scale
-                        id_feature = self.encoder.inference(raw_image,
-                                                            bbox_xyxy.cpu().detach().numpy())  # normalization and numpy included
+                        id_feature = self.encoder.inference(raw_image, bbox_xyxy.cpu().detach().numpy())  # normalization and numpy included
 
             if is_time_record:
                 infer_end = time_synchronized()
